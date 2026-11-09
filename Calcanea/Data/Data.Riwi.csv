@@ -1,0 +1,14 @@
+Genus,Species,Specimen_ID,Side,Sex,Age,Size,Group,L_dlCaCu,B_dlCaCu,H_dlCaCu,B_dmCaCu,H_dmCaCu,B_vmCaCu,B_CaCu,H_CaCu,L_tce,L_tcd,H_tce,B_tce,L_rps,B_ms,H_ms,B_fdl ,B_ch,L_st,H_st,L_mCaTa,B_mCaTa,L_lCaTa,B_lCaTa,B_CLAJ,H_CaFi,B_CaFi
+Riwi,Riwi,3QAS21.1,R,3QA,21,Small,small macropod,1.7,3.46,3.29,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,3.52,3.65,NA,2.32,2.1
+Riwi,Riwi,3QCS22.1,R,3QC,22,Small,Small macropodid,NA,NA,NA,3.67,3.73,NA,6.57,5.32,NA,NA,NA,NA,NA,NA,NA,3.39,8.93,6.54,5.44,5.77,4.56,2.99,3.36,7.31,NA,NA
+Riwi,Riwi,3QDS08.2,R,3QD,8,Medium,Medium macropodid,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4.87,9.32,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+Riwi,Riwi,3QDS08.3,Unknown,3QD,8,Large,large macropod,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+Riwi,Riwi,4QAS31.1,L,4QA,31,Small,large macropod,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,15.49,16.06,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+Riwi,Riwi,4QAS33.1,R,4QA,33,Small,small macropod,1.74,2.78,NA,3.52,NA,NA,7.03,NA,20.29,17.3,6.73,7.04,15.95,4.77,5.5,3.23,9.62,7.86,5.53,5.38,3.57,3.38,3.74,8.27,2.69,2.65
+Riwi,Riwi,4QDS17.1,R,4QD,17,Small,small macropod,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,6.61,4.59,3.26,3.67,8.4,NA,NA
+Riwi,Riwi,4QDS23.1,R,4QD,23,Small,macropod?,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,6.29,4.84,NA,NA,6.5,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+Riwi,Riwi,4QDS23.2,Unknown,4QD,23,Small,macropod,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,7.26,7.51,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+Riwi,Riwi,4QBS19.1,L,4QB,19,Small,small macropod,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,6.97,3.94,2.99,3.11,7.31,NA,NA
+Riwi,Riwi,4QDS07.1,L,4QD,7,Large,large macropod,3.72,7.98,9.46,NA,8.95,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,16.59,NA,10.34,10.86,NA,7.52,7.95
+Riwi,Riwi,3QDS18.1,L,3QD,18,Small,small macropodid,,,,,,,,,,,,,,,,,,,,,,,,,,
+Riwi,Riwi,3QCS14.1,R,3QC,14,Small,small macropodid,,,,,,,,,,,,,,,,,,,,,,,,,,

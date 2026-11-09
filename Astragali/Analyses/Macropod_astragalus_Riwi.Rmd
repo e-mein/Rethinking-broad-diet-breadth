@@ -1,0 +1,3756 @@
+---
+title: "Macropod Astragalus - Metric morphometrics"
+author: "Erin Mein"
+date: "04/03/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+#Description of analyses
+#This analysis includes multivariate ordinal and statistical analyses of macropod astragali and models the classification of archaeological specimens from Boodie Cave, Barrow Island, Western Australia.
+
+```{r set library and wd}
+library(MASS)
+library(tidyverse)
+library(car)
+library(plyr)
+library(Hmisc)
+library(vegan)
+library(rstatix)
+#library(MVN)
+#library(psych)
+
+setwd("C:/Users/erinagain/Dropbox/Documents/PhD/Metric_Morphometrics/Metric_morph_R/Morphometric_classification_kangaroo_bones/Astragali")
+```
+
+# Macropod 3QAS09.2
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep Hnf, Bnf, BmTaCa, HmTaCa)
+Data.train <- Data.train[,c(1:5, 7, 8, 9:10, 16:17)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:11], 1, prod)^(1/4)
+LSR.train <- log(Data.train[,8:11]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:11])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:12])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 9:10, 16:17)]
+
+#remove non-complete rows
+Data.arch <- filter(Data.arch, Specimen_ID == "3QAS09.2")
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:12], 1, prod)^(1/4)
+LSR.arch <- log(Data.arch[,9:12]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Large"), filter(Size, Species == "unguifera"))
+
+col <- c(agilis, antilopinus, bernardus, fuliginosus, robustus, rufus, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  labs(title = "3QAS09.2", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 1, nudge_y = -0.05)+
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean > 6)
+LSR.Large <- rbind(filter(LSR.train, Size == "Large"), filter(LSR.train, Species == "unguifera"), tmp)
+
+```
+
+##PCA
+```{r #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.Large[,10:13])
+sum.PCA <- summary(PCA)
+
+chull <- cbind(LSR.Large[,1:3], PCA$x[,1:2])
+colnames(chull)[4:5] <- c("PC1", "PC2")
+polys <- ddply(chull, .(Species), function(chull) chull[chull(chull$PC1, chull$PC2), ])
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[80,2]~PCA$x[80,1], labels=LSR.Large$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+remove(chull, polys)
+
+```
+
+
+##LDA
+```{r Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Large"), filter(Data.train, Species == "unguifera"))
+lda.form.genus <- lda(Sub.train[,9:12], Sub.train$Genus, CV=T, prior = c(0.25, 0.25, 0.25, 0.25))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:12], Sub.train$Genus, CV=F)
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Specimen' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "3QAS09.2", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r Predict large archaeological specimens species membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QAS09.2"))
+lda.form.genus <-lda(Sub.train[,9:12], Sub.train$Genus, prior = c(0.25, 0.25, 0.25, 0.25), CV=F) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:12)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+chull <- lda.form.plot[1:79,]
+polys <- ddply(chull, .(Genus), function(chull) chull[chull(chull$LD1, chull$LD2), ])
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 80.35%"),
+     ylab=("LD2 19.43%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[80:81]~lda.form.plot$LD1[80:81], labels=lda.form.plot$Specimen_ID[80:81], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropods 3QCS08.2 & 4QBS29.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep Hnf, Bnf, BmTaCa, HmTaCa, L_tn)
+Data.train <- Data.train[,c(1:5, 7, 8, 9:10, 16:17, 20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:12], 1, prod)^(1/5)
+LSR.train <- log(Data.train[,8:12]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:12])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:13])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 9:10, 16:17, 20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QCS08.2"), filter(Data.arch, Specimen_ID == "4QBS29.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:13], 1, prod)^(1/5)
+LSR.arch <- log(Data.arch[,9:13]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+
+col <- c(agilis, antilopinus, bernardus, brachyotis, concinna, conspicillatus, fasciatus, fraenata, fuliginosus, hirsutus, lateralis, lesueur, penicillata, robustus, rothschildi, rufus, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 4, nudge_y = -0.05)+
+  geom_hline(yintercept = LSR.all[186,9])+
+  geom_text(aes(0, LSR.all[186,9], label=LSR.all$Specimen_ID[186]), nudge_x = 4, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean > 4)
+LSR.Large <- rbind(filter(LSR.train, Size == "Large"), filter(LSR.train, Group == "Northern nail-tail wallaby"), tmp)
+
+tmp <- filter(LSR.arch, GeoMean < 4)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 3QCS08.2 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.Large[,10:14])
+sum.PCA <- summary(PCA)
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[80,2]~PCA$x[80,1], labels=LSR.Large$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+remove(chull, polys)
+```
+
+```{r 4QBS29.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:14])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[58,2]~PCA$x[58,1], labels=tmp$Specimen_ID[58], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+remove(chull, polys)
+
+```
+
+##LDA
+```{r 3QCS08.2 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Large"), filter(Data.train, Group == "Northern nail-tail wallaby"))
+lda.form.genus <- lda(Sub.train[,9:13], Sub.train$Genus, CV=T, prior = c(0.25, 0.25, 0.25, 0.25))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:13], Sub.train$Genus, CV=F)
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "3QCS08.2", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QCS08.2 Predict large archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QCS08.2"))
+lda.form.genus <-lda(Sub.train[,9:13], Sub.train$Genus, CV=F, prior = c(0.25, 0.25, 0.25, 0.25)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:13)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QCS08.2 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 60.52%"),
+     ylab=("LD2 39.30%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[80]~lda.form.plot$LD1[80], labels=lda.form.plot$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r 4QBS29.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:13], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:13], Sub.train$Genus, CV=F)
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Specimen' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "4QBS29.1", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 4QBS29.1 Predict large archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "4QBS29.1"))
+lda.form.genus <-lda(Sub.train[,9:13], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:13)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 4QBS29.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 64.69%"),
+     ylab=("LD2 29.54%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 3QCS08.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep Bnf, BmTaCa, HmTaCa, L_tn)
+Data.train <- Data.train[,c(1:5, 7, 8, 10, 16:17, 20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:11], 1, prod)^(1/4)
+LSR.train <- log(Data.train[,8:11]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:11])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:12])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 10, 16:17, 20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QCS08.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:12], 1, prod)^(1/4)
+LSR.arch <- log(Data.arch[,9:12]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Large"), filter(Size, Species == "unguifera"))
+
+col <- c(agilis, antilopinus, bernardus, fuliginosus, robustus, rufus, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 2, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean > 4)
+LSR.Large <- rbind(filter(LSR.train, Size == "Large"), filter(LSR.train, Group == "Northern nail-tail wallaby"), tmp)
+
+```
+
+##PCA
+
+```{r 3QCS08.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.Large[,10:13])
+sum.PCA <- summary(PCA)
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[80,2]~PCA$x[80,1], labels=LSR.Large$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 3QCS08.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Large"), filter(Data.train, Group == "Northern nail-tail wallaby"))
+lda.form.genus <- lda(Sub.train[,9:12], Sub.train$Genus, CV=T, prior = c(0.25, 0.25, 0.25, 0.25))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:12], Sub.train$Genus, CV=F)
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QCS08.1 Predict large archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QCS08.1"))
+lda.form.genus <-lda(Sub.train[,9:12], Sub.train$Genus, CV=F, prior = c(0.25, 0.25, 0.25, 0.25)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:12)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QCS08.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 73.95%"),
+     ylab=("LD2 25.84%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[80]~lda.form.plot$LD1[80], labels=lda.form.plot$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 3QDS09.2
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep L_mtc,	B_mTaCa,	H_mTaCa)
+Data.train <- Data.train[,c(1:5, 7, 8, 11, 16:17)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:10], 1, prod)^(1/3)
+LSR.train <- log(Data.train[,8:10]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:10])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:11])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 11, 16:17)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS09.2"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:11], 1, prod)^(1/3)
+LSR.arch <- log(Data.arch[,9:11]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Large"), filter(Size, Species == "unguifera"))
+
+col <- c(agilis, antilopinus, bernardus, fuliginosus, robustus, rufus, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 1, nudge_y = -0.07)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean > 4)
+LSR.Large <- rbind(filter(LSR.train, Size == "Large"), filter(LSR.train, Group == "Northern nail-tail wallaby"), tmp)
+
+```
+
+##PCA
+```{r 3QDS09.2 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.Large[,10:12])
+sum.PCA <- summary(PCA)
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[80,2]~PCA$x[80,1], labels=LSR.Large$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 3QDS09.2 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Large"), filter(Data.train, Group == "Northern nail-tail wallaby"))
+lda.form.genus <- lda(Sub.train[,9:11], Sub.train$Genus, CV=T, prior = c(0.25, 0.25, 0.25, 0.25))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:11], Sub.train$Genus, CV=F)
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QDS09.2 Predict large archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS09.2"))
+lda.form.genus <-lda(Sub.train[,9:11], Sub.train$Genus, CV=F, prior = c(0.25, 0.25, 0.25, 0.25)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:11)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QDS09.2 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 76.91%"),
+     ylab=("LD2 23.07%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[80]~lda.form.plot$LD1[80], labels=lda.form.plot$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 3QDS09.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep H_nf,	B_nf, L_tn)
+Data.train <- Data.train[,c(1:5, 7, 8, 9:10, 20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:10], 1, prod)^(1/3)
+LSR.train <- log(Data.train[,8:10]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:10])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:11])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 9:10, 20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS09.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:11], 1, prod)^(1/3)
+LSR.arch <- log(Data.arch[,9:11]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Large"), filter(Size, Species == "unguifera"))
+
+col <- c(agilis, antilopinus, bernardus, fuliginosus, robustus, rufus, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 1, nudge_y = -0.09)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean > 4)
+LSR.Large <- rbind(filter(LSR.train, Size == "Large"), filter(LSR.train, Group == "Northern nail-tail wallaby"), tmp)
+
+```
+
+##PCA
+
+```{r 3QDS09.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.Large[,10:12])
+sum.PCA <- summary(PCA)
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[80,2]~PCA$x[80,1], labels=LSR.Large$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+remove(chull, polys)
+
+```
+
+##LDA
+```{r 3QDS09.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Large"), filter(Data.train, Group == "Northern nail-tail wallaby"))
+lda.form.genus <- lda(Sub.train[,9:11], Sub.train$Genus, CV=T, prior = c(0.25, 0.25, 0.25, 0.25))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:11], Sub.train$Genus, CV=F)
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QDS09.1 Predict large archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS09.1"))
+lda.form.genus <-lda(Sub.train[,9:11], Sub.train$Genus, CV=F, prior = c(0.25, 0.25, 0.25, 0.25)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:11)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QDS09.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(agilis, antilopinus, bernardus, fuliginosus, Riwi, robustus, rufus, unguifera)
+palette <- palette[as.factor(LSR.Large$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 95.08%"),
+     ylab=("LD2 0.047%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[80]~lda.form.plot$LD1[80], labels=lda.form.plot$Specimen_ID[80], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 1QAS102.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep B_nf,	L_mtc, B_atc, B_mTaCa,	H_mTaCa,	B_lTaCa, L_tn)  
+Data.train <- Data.train[,c(1:5, 7, 8, 10:11, 13, 16:18, 20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:14], 1, prod)^(1/7)
+LSR.train <- log(Data.train[,8:14]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:14])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:15])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 10:11, 13, 16:18, 20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "1QAS102.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:15], 1, prod)^(1/7)
+LSR.arch <- log(Data.arch[,9:15]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 4, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 4)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 1QAS102.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:16])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+remove(chull, polys)
+```
+
+##LDA
+```{r 1QAS102.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:15], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:15], Sub.train$Genus, CV=F)
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 1QAS102.1 Predict large archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "1QAS102.1"))
+lda.form.genus <-lda(Sub.train[,9:15], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:15)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 1QAS102.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 66.75%"),
+     ylab=("LD2 17.20%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 3QBS17.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep L_mtc, B_atc, B_mTaCa,	H_mTaCa,	L_tn)
+Data.train <- Data.train[,c(1:5, 7, 8, 11, 13, 16:17, 20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:12], 1, prod)^(1/5)
+LSR.train <- log(Data.train[,8:12]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:12])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:13])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 11, 13, 16:17, 20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QBS17.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:13], 1, prod)^(1/5)
+LSR.arch <- log(Data.arch[,9:13]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 6, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 4)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 3QBS17.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:14])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 3QBS17.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:13], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:13], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Specimen' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "3QBS17.1", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QBS17.1 Predict large archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QBS17.1"))
+lda.form.genus <-lda(Sub.train[,9:13], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:13)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QBS17.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 66.88%"),
+     ylab=("LD2 23.06%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+
+# Macropod 3QDS16.1, 3QDS28.1, 4QBS14.1, 4QBS18.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep L_mtc,	L_ltc,	B_atc,	B_ptc, B_mTaCa,	H_mTaCa,	B_lTaCa,	L_lTaCa)
+Data.train <- Data.train[,c(1:5, 7:8, 11:14, 16:19)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:15], 1, prod)^(1/8)
+LSR.train <- log(Data.train[,8:15]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:15])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:16])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 11:14, 16:19)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS16.1"), filter(Data.arch, Specimen_ID == "3QDS28.1"), filter(Data.arch, Specimen_ID == "4QBS14.1"), filter(Data.arch, Specimen_ID == "4QBS18.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:16], 1, prod)^(1/8)
+LSR.arch <- log(Data.arch[,9:16]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90))+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 8, nudge_y = 0.095)+
+  geom_hline(yintercept = LSR.all[186,9])+
+  geom_text(aes(0, LSR.all[186,9], label=LSR.all$Specimen_ID[186]), nudge_x = 6, nudge_y = -0.09)+
+  geom_hline(yintercept = LSR.all[187,9])+
+  geom_text(aes(0, LSR.all[187,9], label=LSR.all$Specimen_ID[187]), nudge_x = 8, nudge_y = -0.05)+
+  geom_hline(yintercept = LSR.all[188,9])+
+  geom_text(aes(0, LSR.all[188,9], label=LSR.all$Specimen_ID[188]), nudge_x = 6, nudge_y = 0.05)+
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 3QDS16.1, 3QDS28.1, 4QBS14.1, 4QBS18.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:17])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116:119,2]~PCA$x[116:119,1], labels=LSR.SmallMed$Specimen_ID[116:119], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+remove(chull, polys)
+
+```
+
+##LDA
+```{r 3QDS16.1, 3QDS28.1, 4QBS14.1, 4QBS18.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:16], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:16], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QDS16.1, 3QDS28.1, 4QBS14.1, 4QBS18.1 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS16.1"), filter(Data.arch, Specimen_ID == "3QDS28.1"), filter(Data.arch, Specimen_ID =="4QBS14.1"), filter(Data.arch, Specimen_ID == "4QBS18.1"))
+lda.form.genus <-lda(Sub.train[,9:16], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:16)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QDS16.1, 3QDS28.1, 4QBS14.1, 4QBS18.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 58.83%"),
+     ylab=("LD2 26.66%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116:119]~lda.form.plot$LD1[116:119], labels=lda.form.plot$Specimen_ID[116:119], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 3QDS16.2, 4QAS33.2
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep L_mtc,	L_ltc,	B_atc,	B_ptc, B_t, B_mTaCa,	H_mTaCa,	B_lTaCa,	L_lTaCa)
+Data.train <- Data.train[,c(1:5, 7:8, 11:19)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:16], 1, prod)^(1/9)
+LSR.train <- log(Data.train[,8:16]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:16])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:17])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 11:19)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS16.2"), filter(Data.arch, Specimen_ID == "4QAS33.2"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:17], 1, prod)^(1/9)
+LSR.arch <- log(Data.arch[,9:17]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 8, nudge_y = 0.095)+
+  geom_hline(yintercept = LSR.all[186,9])+
+  geom_text(aes(0, LSR.all[186,9], label=LSR.all$Specimen_ID[186]), nudge_x = 9, nudge_y = -0.05)+
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 3QDS16.2, 4QAS33.2 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:18])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116:117,2]~PCA$x[116:117,1], labels=LSR.SmallMed$Specimen_ID[116:117], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 3QDS16.2, 4QAS33.2 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:17], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:17], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QDS16.2, 4QAS33.2 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS16.2"), filter(Data.arch, Specimen_ID == "4QAS33.2"))
+lda.form.genus <-lda(Sub.train[,9:17], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:17)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QDS16.2, 4QAS33.2 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 57.36%"),
+     ylab=("LD2 26.36%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116:117]~lda.form.plot$LD1[116:117], labels=lda.form.plot$Specimen_ID[116:117], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 4QBS13.1, 4QBS28.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep "H_nf","B_nf", "L_mtc","L_ltc","B_atc", "B_ptc", "B_t", "B_mTaCa", "H_mTaCa", "B_lTaCa", "L_lTaCa", "L_tn")
+Data.train <- Data.train[,c(1:5, 7:8, 9:20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:19], 1, prod)^(1/12)
+LSR.train <- log(Data.train[,8:19]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:19])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:20])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 9:20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "4QBS13.1"), filter(Data.arch, Specimen_ID == "4QBS28.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:20], 1, prod)^(1/12)
+LSR.arch <- log(Data.arch[,9:20]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90))+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 7, nudge_y = 0.095)+
+  geom_hline(yintercept = LSR.all[186,9])+
+  geom_text(aes(0, LSR.all[186,9], label=LSR.all$Specimen_ID[186]), nudge_x = 9, nudge_y = -0.095)+
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 4QBS13.1, 4QBS28.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:21])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116:117,2]~PCA$x[116:117,1], labels=LSR.SmallMed$Specimen_ID[116:117], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 4QBS13.1, 4QBS28.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:20], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:20], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 4QBS13.1, 4QBS28.1 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "4QBS13.1"), filter(Data.arch, Specimen_ID == "4QBS28.1"))
+lda.form.genus <-lda(Sub.train[,9:20], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:20)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 4QBS13.1, 4QBS28.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 57.39%"),
+     ylab=("LD2 14.25%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116:117]~lda.form.plot$LD1[116:117], labels=lda.form.plot$Specimen_ID[116:117], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 4QBS18.2
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep L_mtc, B_atc,	B_mTaCa	H_mTaCa	B_lTaCa)
+Data.train <- Data.train[,c(1:5, 7:8, 11, 13, 16:18)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:12], 1, prod)^(1/5)
+LSR.train <- log(Data.train[,8:12]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:12])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:13])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 11, 13, 16:18)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "4QBS18.2"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:13], 1, prod)^(1/5)
+LSR.arch <- log(Data.arch[,9:13]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 8, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 4QBS18.2 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:14])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+
+```
+
+##LDA
+```{r 4QBS18.2 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:13], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:13], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 4QBS18.2 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "4QBS18.2"))
+lda.form.genus <-lda(Sub.train[,9:13], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:13)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 4QBS18.2 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+chull <- lda.form.plot[1:110,]
+polys <- ddply(chull, .(Genus), function(chull) chull[chull(chull$LD1, chull$LD2), ])
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 68.71%"),
+     ylab=("LD2 21.40%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 4QDS17.2
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep H_nf	B_nf	L_mtc, B_atc, B_t	B_mTaCa	H_mTaCa	B_lTaCa, L_tn)
+Data.train <- Data.train[,c(1:5, 7:8, 9:11, 13, 15:18, 20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:16], 1, prod)^(1/9)
+LSR.train <- log(Data.train[,8:16]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:16])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:17])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 9:11, 13, 15:18, 20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "4QDS17.2"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:17], 1, prod)^(1/9)
+LSR.arch <- log(Data.arch[,9:17]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 4, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 4QDS17.2 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:18])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 4QDS17.2 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:17], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:17], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 4QDS17.2 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "4QDS17.2"))
+lda.form.genus <-lda(Sub.train[,9:17], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:17)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 4QDS17.2 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 62.39%"),
+     ylab=("LD2 17.10%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+#Macropod 3QAS17.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep B_nf	B_atc, B_t	B_mTaCa	H_mTaCa	B_lTaCa	L_lTaCa	L_tn)
+Data.train <- Data.train[,c(1:5, 7:8, 10, 13, 15:20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:15], 1, prod)^(1/8)
+LSR.train <- log(Data.train[,8:15]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:15])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:16])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 10, 13, 15:20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QAS17.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:16], 1, prod)^(1/8)
+LSR.arch <- log(Data.arch[,9:16]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 2, nudge_y = 0.095)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+
+##PCA
+
+```{r 3QAS17.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:17])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 3QAS17.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:16], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:16], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QAS17.1 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QAS17.1"))
+lda.form.genus <-lda(Sub.train[,9:16], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:16)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QAS17.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 69.23%"),
+     ylab=("LD2 19.56%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 4QCS09.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep B_nf	L_ltc	B_atc,	B_mTaCa	H_mTaCa	B_lTaCa	L_lTaCa	L_tn)
+Data.train <- Data.train[,c(1:5, 7:8, 10, 12:13, 16:20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:15], 1, prod)^(1/8)
+LSR.train <- log(Data.train[,8:15]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:15])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:16])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 10, 12:13, 16:20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "4QCS09.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:16], 1, prod)^(1/8)
+LSR.arch <- log(Data.arch[,9:16]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 8, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 4QCS09.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:17])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+remove(chull, polys)
+
+```
+
+##LDA
+```{r 4QCS09.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:16], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:16], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 4QCS09.1 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "4QCS09.1"))
+lda.form.genus <-lda(Sub.train[,9:16], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:16)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 4QCS09.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+chull <- lda.form.plot[1:110,]
+polys <- ddply(chull, .(Genus), function(chull) chull[chull(chull$LD1, chull$LD2), ])
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 66.46%"),
+     ylab=("LD2 20.67%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 3QDS14.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep B_atc, B_t	B_mTaCa	H_mTaCa, L_tn)
+Data.train <- Data.train[,c(1:5, 7:8, 13, 15:17, 20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:12], 1, prod)^(1/5)
+LSR.train <- log(Data.train[,8:12]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:12])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:13])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 13, 15:17, 20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS14.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:13], 1, prod)^(1/5)
+LSR.arch <- log(Data.arch[,9:13]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 8, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 3QDS14.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:14])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 3QDS14.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:13], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:13], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QDS14.1 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS14.1"))
+lda.form.genus <-lda(Sub.train[,9:13], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:13)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QDS14.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 78.88%"),
+     ylab=("LD2 16.53%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Macropod 3QDS17.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep B_nf, L_ltc, B_atc, B_t,	B_mTaCa,	H_mTaCa,	B_lTaCa,	L_lTaCa,	L_tn)
+Data.train <- Data.train[,c(1:5, 7:8, 10, 12:13, 15:20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:16], 1, prod)^(1/9)
+LSR.train <- log(Data.train[,8:16]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:16])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:17])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data
+Data.arch <- Data.arch[,c(1:8, 10, 12:13, 15:20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS17.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:17], 1, prod)^(1/9)
+LSR.arch <- log(Data.arch[,9:17]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 8, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 3QDS17.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:18])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 3QDS17.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:17], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:17], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QDS17.1 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS17.1"))
+lda.form.genus <-lda(Sub.train[,9:17], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:17)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QDS17.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 67.08%"),
+     ylab=("LD2 20.07%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+# Macropod 3QBS18.1
+
+```{r Import Training data & remove unwanted variables & calculate GeoMean}
+Data.train <- read.csv(file="Data/Data.train.riwi.csv", header=TRUE)
+rownames(Data.train) <- c(paste(substr(Data.train$Genus,1,1),substr(Data.train$Species,1,3), Data.train$Specimen_ID ,sep = "_"))
+
+# Remove redundant variables from training data (keep L_mtc	L_ltc	B_atc	B_ptc, H_mTaCa	B_lTaCa	L_lTaCa	L_tn)
+Data.train <- Data.train[,c(1:5, 7:8, 11:14, 17:20)]
+colnames(Data.train)
+
+#calculate Geometric Mean & standardise data using Log Shape Ratio method (Claude 2013)
+GeoMean <- apply(Data.train[,8:15], 1, prod)^(1/8)
+LSR.train <- log(Data.train[,8:15]/ GeoMean)
+LSR.train <- cbind(Data.train[,1:7], GeoMean, LSR.train)
+remove(GeoMean)
+```
+
+```{r Apply Size Categories to Training Data}
+Size <- Data.train$Group
+Size <- gsub("Burrowing bettong", "Small", Size)
+Size <- gsub("Brush-tailed bettong", "Small", Size)
+Size <- gsub("Spectacled hare-wallaby", "Medium", Size)
+Size <- gsub("Rufous hare-wallaby", "Small", Size)
+Size <- gsub("Banded hare-wallaby", "Small", Size)
+Size <- gsub("W. grey kangaroo", "Large", Size)
+Size <- gsub("Agile wallaby", "Large", Size)
+Size <- gsub("Bridled nail-tail wallaby", "Medium", Size)
+Size <- gsub("Northern nail-tail wallaby", "Medium", Size)
+Size <- gsub("Black wallaroo", "Large", Size)
+Size <- gsub("Antilopine wallaroo", "Large", Size)
+Size <- gsub("Common wallaroo", "Large", Size)
+Size <- gsub("Red kangaroo", "Large", Size)
+Size <- gsub("Short-eared rock-wallaby", "Medium", Size)
+Size <- gsub("Nabarlek", "Small", Size)
+Size <- gsub("Black-flanked rock-wallaby", "Medium", Size)
+Size <- gsub("Rothschild's rock-wallaby", "Medium", Size)
+
+Data.train <- cbind(Data.train[,1:6], Size, Data.train[,7:15])
+LSR.train <- cbind(LSR.train[,1:6], Size, LSR.train[,7:16])
+remove(Size)
+```
+
+```{r Import Archaeological Data}
+Data.arch <- read.csv(file="Data/Data.Riwi.csv", header=TRUE)
+rownames(Data.arch) <- c(paste(substr(Data.arch$Genus,1,1),substr(Data.arch$Species,1,3), Data.arch$Specimen_ID ,sep = "_"))
+
+#Remove redundant variables from Riwi data (keep L_mtc	L_ltc	B_atc	B_ptc, H_mTaCa	B_lTaCa	L_lTaCa	L_tn)
+Data.arch <- Data.arch[,c(1:8, 11:14, 17:20)]
+
+#remove non-complete rows
+Data.arch <- rbind(filter(Data.arch, Specimen_ID == "3QBS18.1"))
+
+#Calculate Size of Archaeological Specimens & Compare with training data}
+GeoMean <- apply(Data.arch[,9:17], 1, prod)^(1/9)
+LSR.arch <- log(Data.arch[,9:17]/ GeoMean)
+LSR.arch <- cbind(Data.arch[,1:8], GeoMean, LSR.arch)
+
+colnames(LSR.arch) == colnames(LSR.train)
+remove(GeoMean)
+
+LSR.all <- rbind(LSR.train, LSR.arch)
+```
+
+```{r Symbology }
+Macropus <- "#E06120"
+Osphranter <- "#53f395"
+Notamacropus <- "#003eff"
+Wallabia <- "#F9438F"
+Lagorchestes <- "#33FFFF"
+Onychogalea <- "#CCCC00"
+Petrogale <- "#FF33CC"
+Bettongia <- "#666666"
+Lagorstrophus <- "#339999"
+
+agilis <- "#003eff"
+antilopinus <- "#1f986c"
+bernardus <- "#93dd4b"
+bicolor <- "#F9438F"
+fuliginosus <- "#E29900"
+giganteus <- "#E06120"
+parryi <- "#191e86"
+robustus <- "#53f395"
+rufogriseus <- "#47e0ff"
+rufus <- "#37671d"
+conspicillatus <- "#33FFFF"
+fraenata <- "#CCCC00"
+unguifera <- "#FFFF00"
+brachyotis <- "#FF33CC"
+lateralis <- "#CC0066"
+rothschildi <- "#FFCCCC"
+lesueur <- "#CCCCCC"
+penicillata <- "#666666"
+hirsutus <- "#00FFCC"
+fasciatus <- "#339999"
+concinna <- "#FFCCFF"
+Riwi <- "black"
+```
+
+```{r Boxplot}
+Size <- LSR.all[1:184,1:9]
+Size <- rbind(filter(Size, Size == "Small"), filter(Size, Size == "Medium"))
+
+col <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, rothschildi, unguifera)
+
+ggplot(Size, aes(x = reorder(Species, GeoMean), y = GeoMean, fill = Species, group = Species)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values=col) +
+  ggbeeswarm::geom_quasirandom(alpha = 0.5, size = 2) +
+  theme_minimal(base_size = 12)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title = "Astragalus Size", x = "Species", y = "GeometricMean")+
+  theme(legend.position = "none")+
+  geom_hline(yintercept = LSR.all[185,9])+
+  geom_text(aes(0, LSR.all[185,9], label=LSR.all$Specimen_ID[185]), nudge_x = 8, nudge_y = -0.05)
+
+remove(Size, col)
+```
+
+```{r Split Training Data & Archaeological Data into Size Classes}
+
+tmp <- filter(LSR.arch, GeoMean < 5.5)
+LSR.SmallMed <- rbind(filter(LSR.train, Size == "Small"), filter(LSR.train, Size == "Medium"), tmp)
+
+```
+
+##PCA
+
+```{r 3QDS17.1 #Plot PC1 vs PC2}
+PCA <- prcomp(LSR.SmallMed[,10:18])
+sum.PCA <- summary(PCA)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(PCA$x[,2] ~ PCA$x[,1], 
+     pch=16,
+     col=palette,
+     xlab=paste("PC 1 (", round(sum.PCA$importance[2]*100, 1), "%)", sep = ""), 
+     ylab=paste("PC 2 (", round(sum.PCA$importance[5]*100, 1), "%)", sep = ""), 
+     asp=1, 
+     cex=3)
+
+text(PCA$x[116,2]~PCA$x[116,1], labels=LSR.SmallMed$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5) 
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
+
+##LDA
+```{r 3QDS17.1 Cross Validated LDA on Form (size included) - by Genus}
+Sub.train <- rbind(filter(Data.train, Size == "Small"), filter(Data.train, Size == "Medium"))
+lda.form.genus <- lda(Sub.train[,9:17], Sub.train$Genus, CV=T, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Hit.ratio <- length(which(lda.form.genus$class==Sub.train$Genus))/length(Sub.train$Genus)
+Hit.ratio
+CVtable.large <- table(Sub.train$Genus, lda.form.genus$class)
+CVtable.large
+
+#Hit ratio must be > Maximum Chance Criterion +25% (Ramayah et al. 2014)
+tmp <- lda(Sub.train[,9:17], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2))
+Cmax <- as.numeric(sort(tmp$counts, decreasing = TRUE))
+Cmax <- (Cmax[1]/tmp$N)*1.25
+Cmax
+
+#Hit ratio must be > Proportional Chance Criterion + 25% (Sanchez 1974; Kovarovic et al. 2011; Ramayah et al. 2014)
+Cpro <- (sum(tmp$prior^2))*1.25
+Cpro
+
+#Press Q statistic (Ramayah et al. 2014)
+PressQ <- ((tmp$N - ((tmp$N*Hit.ratio)*(length(tmp$lev))))^2)/((tmp$N)*((length(tmp$lev)-1)))
+PressQ >= qchisq(0.01, (length(tmp$lev)-1))
+
+CV.genus.form <- data.frame('Element' = character(0), 'Size' = character(0), 'Hit Ratio' = integer(0), 'Cmax+25' = integer(0), 'Cpro+25' = integer(0), 'Press.Q'= integer(0))
+CV.genus.form[1,] <- rbind(CV.genus.form, c("Astragalus", "Large", round(Hit.ratio,2), round(Cmax,2), round(Cpro,2), round(PressQ,2)))
+remove(tmp, Hit.ratio, Cmax, Cpro, PressQ)
+CV.genus.form
+```
+
+```{r 3QDS17.1 Predict  archaeological specimens genus membership}
+Arch <- rbind(filter(Data.arch, Specimen_ID == "3QDS17.1"))
+lda.form.genus <-lda(Sub.train[,9:17], Sub.train$Genus, CV=F, prior = c(0.2, 0.2, 0.2, 0.2, 0.2)) 
+lda.form.train.predict <- predict(lda.form.genus)
+lda.form.arch.predict <- predict(lda.form.genus, Arch[,c(9:17)])
+Arch.predict <- lda.form.arch.predict$posterior
+round(Arch.predict, 3)
+```
+
+```{r 3QDS17.1 plot LDA.form on Genus and compare archaeological specimens}
+lda.form.plot <- cbind(Sub.train[,1:8], lda.form.train.predict$x) 
+tmp <- cbind(Arch[,1:8], lda.form.arch.predict$x)
+lda.form.plot <- rbind(lda.form.plot, tmp)
+remove(tmp)
+
+palette <- c(brachyotis, concinna, conspicillatus, fasciatus, fraenata, hirsutus, lateralis, lesueur, penicillata, Riwi, unguifera)
+palette <- palette[as.factor(LSR.SmallMed$Species)]
+
+plot(lda.form.plot$LD2 ~ lda.form.plot$LD1,
+     pch=16,
+     col=palette,
+     xlab=("LD1 67.08%"),
+     ylab=("LD2 20.07%"),
+     asp = 1,
+     cex=3)
+
+text(lda.form.plot$LD2[116]~lda.form.plot$LD1[116], labels=lda.form.plot$Specimen_ID[116], pos=c(1,3,2,4), cex=1.5)
+
+abline(v=0, lty=2, col="grey50")
+abline(h=0, lty=2, col="grey50")
+```
